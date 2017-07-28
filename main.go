@@ -36,9 +36,10 @@ func runner(name string, err chan<- asyncError, f interface{}, params ...interfa
 	wg.Add(2)
 	go fValue.Call(in)
 	go func() {
-		for {
-			select {
-			case e := <-r:
+		select {
+		case e := <-r:
+			defer wg.Done()
+			if e != nil {
 				supervisor(asyncError{name, e})
 			}
 		}
@@ -47,7 +48,6 @@ func runner(name string, err chan<- asyncError, f interface{}, params ...interfa
 }
 
 func supervisor(err asyncError) {
-	defer wg.Done()
 	fmt.Println(err.RunnerName)
 	fmt.Println(err.Err)
 }
@@ -59,6 +59,7 @@ func main() {
 
 func hardTask(err chan<- error, numbers []int) {
 	defer wg.Done()
+	defer close(err)
 	fmt.Println(numbers)
-	err <- errors.New("EROOOOOR!!!")
+	// err <- errors.New("EROOOOOR!!!")
 }
