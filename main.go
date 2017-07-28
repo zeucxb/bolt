@@ -14,19 +14,19 @@ type asyncError struct {
 
 var wg sync.WaitGroup
 
-func runner(name string, err chan<- asyncError, f interface{}, params ...interface{}) {
+func run(name string, eChan chan<- asyncError, f interface{}, params ...interface{}) {
 	fValue := reflect.ValueOf(f)
 	fType := fValue.Type()
 
 	if fType.Kind() != reflect.Func {
-		err <- asyncError{name, errors.New("We need a valid function to work")}
+		eChan <- asyncError{name, errors.New("We need a valid function to work")}
 		return
 	}
 
-	r := make(chan error)
-	rValue := reflect.ValueOf(r)
+	err := make(chan error)
+	errValue := reflect.ValueOf(err)
 
-	in := []reflect.Value{rValue}
+	in := []reflect.Value{errValue}
 
 	for _, param := range params {
 		pValue := reflect.ValueOf(param)
@@ -37,7 +37,7 @@ func runner(name string, err chan<- asyncError, f interface{}, params ...interfa
 	go fValue.Call(in)
 	go func() {
 		select {
-		case e := <-r:
+		case e := <-err:
 			defer wg.Done()
 			if e != nil {
 				supervisor(asyncError{name, e})
@@ -47,6 +47,15 @@ func runner(name string, err chan<- asyncError, f interface{}, params ...interfa
 	wg.Wait()
 }
 
+func stop(eChan chan<- error, err error) {
+	defer wg.Done()
+	defer close(eChan)
+
+	if err != nil {
+		eChan <- err
+	}
+}
+
 func supervisor(err asyncError) {
 	fmt.Println(err.RunnerName)
 	fmt.Println(err.Err)
@@ -54,12 +63,16 @@ func supervisor(err asyncError) {
 
 func main() {
 	err := make(chan asyncError)
-	runner("HARD TASK", err, hardTask, []int{1, 4, 6, 7})
+	
+	run("HARD TASK 1", err, hardTask, []int{1, 4, 6, 7})
+	run("HARD TASK 2", err, hardTask, []int{1, 4, 6, 7})
+	run("HARD TASK 3", err, hardTask, []int{1, 4, 6, 7})
+	run("HARD TASK 4", err, hardTask, []int{1, 4, 6, 7})
+	run("HARD TASK 5", err, hardTask, []int{1, 4, 6, 7})
 }
 
-func hardTask(err chan<- error, numbers []int) {
-	defer wg.Done()
-	defer close(err)
+func hardTask(eChan chan<- error, numbers []int) {
 	fmt.Println(numbers)
-	// err <- errors.New("EROOOOOR!!!")
+	// stop(eChan, nil)
+	stop(eChan, errors.New("EROOOOOR!!!"))
 }
